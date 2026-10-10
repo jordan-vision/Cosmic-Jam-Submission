@@ -3,132 +3,88 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using static Map;
 
 public class Map : MonoBehaviour
 {
-    enum ActionStep
-    {
-        SELECTACTION,
-        SELECTMOVESTART,
-        SELECTMOVEDESTINATION,
-        SELECTORBITALSHIFTRING,
-        CHOOSEORBITALSHIFTOFFSET
-    }
-
-    enum Ring
+    public enum Ring
     {
         RING1,
         RING2,
         RING3,
     }
 
-    ActionStep currentStep = ActionStep.SELECTACTION;
+    List<Vector3Int> allMapPositions = new();
     Grid grid;
-    Ring selectedRing;
-    GameObject selectedShip;
-    Vector3Int selectedShipCoordinates;
     List<Vector3Int> ring1 = new() { new(-1, 1), new(0, 1), new(1, 0), new(0, -1), new(-1, -1), new(-1, 0) };
     List<Vector3Int> ring2 = new() { new(0, 2), new(1, 2), new(1, 1), new(2, 0), new(1, -1), new(1, -2), new(0, -2), new(-1, -2), new(-2, -1), new(-2, 0), new(-2, 1), new(-1, 2) };
     List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3) };
-    Dictionary<(int, int), GameObject> ships = new();
+    Array rings = Enum.GetValues(typeof(Ring));
+    PlayerInfo humanPlayerInfo = new(Color.red);
+    PlayerInfo cpuPlayerInfo = new(Color.green);
 
     [SerializeField] GameObject shipPrefab;
     [SerializeField] Tilemap tilemap;
 
+    public PlayerInfo CPUPlayerInfo => cpuPlayerInfo;
+    public PlayerInfo HumanPlayerInfo => humanPlayerInfo;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        ring1.ForEach(v => allMapPositions.Add(new(v.x, v.y)));
+        ring2.ForEach(v => allMapPositions.Add(new(v.x, v.y)));
+        ring3.ForEach(v => allMapPositions.Add(new(v.x, v.y)));
+        allMapPositions.Add(new(0, 0));
         grid = GetComponent<Grid>();
-        AddShip(0, 0);
+
+        AddShip(humanPlayerInfo, -2, -3);
+        AddShip(humanPlayerInfo, -2, -3);
+        AddShip(humanPlayerInfo, -1, -3);
+        AddShip(humanPlayerInfo, -2, -2);
+
+        AddShip(cpuPlayerInfo, 1, 3);
+        AddShip(cpuPlayerInfo, 1, 3);
+        AddShip(cpuPlayerInfo, 0, 3);
+        AddShip(cpuPlayerInfo, 2, 2);
+
+        GameManager.Instance.HumanPlayer.StartTurn();
     }
 
-    // Update is called once per frame
-    void Update()
+    void AddShip(PlayerInfo player, int x, int y)
     {
-        if (currentStep == ActionStep.SELECTACTION)
+        if (!player.Ships.TryGetValue((x, y), out var numberOfShipsHere) || numberOfShipsHere == 0)
         {
-            return;
+            var worldPosition = grid.GetCellCenterWorld(new(x, y));
+            player.ShipCounters[(x, y)] = Instantiate(shipPrefab, worldPosition, Quaternion.identity, transform);
+            player.ShipCounters[(x, y)].GetComponent<ShipCounter>().SetColor(player.PlayerColor);
+            player.Ships[(x, y)] = 0;
         }
+        player.Ships[(x, y)]++;
+        player.ShipCounters[(x, y)].GetComponent<ShipCounter>().SetCounter(player.Ships[(x, y)]);
+    }
 
-        var mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        if (Input.GetMouseButtonDown(0))
+    void RemoveShip(PlayerInfo player, int x, int y)
+    {
+        player.Ships[(x, y)]--;
+        if (player.Ships[(x, y)] == 0)
         {
-            var tileClicked = grid.WorldToCell(mousePosition);
-
-            if (currentStep == ActionStep.SELECTMOVESTART)
-            {
-                if (ships.TryGetValue((tileClicked.x, tileClicked.y), out var ship))
-                {
-                    selectedShip = ship;
-                    selectedShipCoordinates = tileClicked;
-                    currentStep = ActionStep.SELECTMOVEDESTINATION;
-
-                    Debug.Log($"selected ship {ship}");
-                }
-                else
-                {
-                    Debug.Log($"there are no ships here");
-                }
-            }
-            else if (currentStep == ActionStep.SELECTMOVEDESTINATION)
-            {
-                var newTileCoordinates = tileClicked;
-                if (AreTilesAdjacent(selectedShipCoordinates, newTileCoordinates))
-                {
-                    MoveShip(selectedShipCoordinates, newTileCoordinates);
-                    Debug.Log($"moving to {newTileCoordinates}");
-                    currentStep = ActionStep.SELECTACTION;
-                }
-                else
-                {
-                    Debug.Log($"did not pick an adjacent tile");
-                }
-            }
-            else if (currentStep == ActionStep.SELECTORBITALSHIFTRING)
-            {
-                Vector3Int toCompare = new(tileClicked.x, tileClicked.y);
-                if (ring1.Contains(toCompare))
-                {
-                    selectedRing = Ring.RING1;
-                } 
-                else if (ring2.Contains(toCompare))
-                {
-                    selectedRing = Ring.RING2;
-                }
-                else if (ring3.Contains(toCompare)) {
-                    selectedRing = Ring.RING3;
-                }
-                currentStep = ActionStep.CHOOSEORBITALSHIFTOFFSET;
-            }
+            Destroy(player.ShipCounters[(x, y)]);
+            player.ShipCounters.Remove((x, y));
         }
-
-        if (currentStep == ActionStep.CHOOSEORBITALSHIFTOFFSET)
+        else
         {
-            if (Input.GetAxis("Mouse ScrollWheel") > 0f)
-            {
-                OrbitalShift(selectedRing, -1);
-            }
-            else if (Input.GetAxis("Mouse ScrollWheel") < 0f)
-            {
-                OrbitalShift(selectedRing, 1);
-            }
+            player.ShipCounters[(x, y)].GetComponent<ShipCounter>().SetCounter(player.Ships[(x, y)]);
         }
     }
 
-    void AddShip(int x, int y)
+    public void MoveShip(PlayerInfo player, Vector3Int from, Vector3Int to)
     {
-        var worldPosition = grid.GetCellCenterWorld(new(x, y));
-        ships[(x, y)] = Instantiate(shipPrefab, worldPosition, Quaternion.identity, transform);
+        RemoveShip(player, from.x, from.y);
+        AddShip(player, to.x, to.y);
     }
 
-    void MoveShip(Vector3Int from, Vector3Int to)
-    {
-        ships[(to.x, to.y)] = ships[(from.x, from.y)];
-        ships.Remove((from.x, from.y));
-        ships[(to.x, to.y)].transform.position = grid.GetCellCenterWorld(new(to.x, to.y));
-    }
-
-    bool AreTilesAdjacent(Vector3Int tile1, Vector3Int tile2)
+    public bool AreTilesAdjacent(Vector3Int tile1, Vector3Int tile2)
     {
         if (tile1.x == tile2.x && tile1.y == tile2.y)
         {
@@ -154,7 +110,33 @@ public class Map : MonoBehaviour
         }
     }
 
-    void OrbitalShift(Ring ring, int offset)
+    List<Vector3Int> GetAllAdjacentTiles(Vector3Int tile)
+    {
+        List<Vector3Int> results = new()
+        {
+            new(tile.x - 1, tile.y),
+            new(tile.x + 1, tile.y),
+            new(tile.x, tile.y - 1),
+            new(tile.x, tile.y + 1)
+        };
+
+        if (tile.y % 2 == 0)
+        {
+            results.Add(new(tile.x - 1, tile.y - 1));
+            results.Add(new(tile.x - 1, tile.y + 1));
+        }
+        else
+        {
+            results.Add(new(tile.x + 1, tile.y - 1));
+            results.Add(new(tile.x + 1, tile.y + 1));
+        }
+
+        results = results.FindAll(tile => IsTileInMap(tile));
+
+        return results;
+    }
+
+    public void OrbitalShift(Ring ring, int offset)
     {
         List<Vector3Int> ringList = new();
         switch (ring)
@@ -190,20 +172,61 @@ public class Map : MonoBehaviour
         }
     }
 
-    public void StartMove()
+    public Vector3Int GetTileClicked(Vector3 mousePosition)
     {
-        currentStep = ActionStep.SELECTMOVESTART;
+        return grid.WorldToCell(mousePosition);
     }
 
-    public void StartOrbitalShift()
+    public bool IsTileInMap(Vector3Int tile)
     {
-        if (currentStep != ActionStep.SELECTORBITALSHIFTRING)
+        return allMapPositions.Contains(new(tile.x, tile.y));
+    }
+
+    public bool IsShipInTile(PlayerInfo player, Vector3Int tile, out GameObject ship)
+    {
+        return player.ShipCounters.TryGetValue((tile.x, tile.y), out ship);
+    }
+
+    public bool IsTileInRing(Vector3Int tile, Ring ring)
+    {
+        Vector3Int toCompare = new(tile.x, tile.y);
+        return ring switch
         {
-            currentStep = ActionStep.SELECTORBITALSHIFTRING;
-        }
-        else
+            Ring.RING1 => ring1.Contains(toCompare),
+            Ring.RING2 => ring2.Contains(toCompare),
+            Ring.RING3 => ring3.Contains(toCompare),
+            _ => false,
+        };
+    }
+
+    public void RandomMove(PlayerInfo player)
+    {
+        var startPosition = player.GetRandomShip();
+        var startPositionCoordinates = new Vector3Int(startPosition.Key.Item1, startPosition.Key.Item2);
+
+        var possibleDestinations = GetAllAdjacentTiles(startPositionCoordinates);
+        var chosenDestination = possibleDestinations[UnityEngine.Random.Range(0, possibleDestinations.Count)];
+        MoveShip(player, startPositionCoordinates, chosenDestination);
+    }
+
+    public void RandomOrbitalShift()
+    {
+        var ringChosen = (Ring)rings.GetValue(UnityEngine.Random.Range(0, rings.Length));
+        List<Vector3Int> ringList = new();
+        switch (ringChosen)
         {
-            currentStep = ActionStep.SELECTACTION;
+            case Ring.RING1:
+                ringList = ring1;
+                break;
+
+            case Ring.RING2:
+                ringList = ring2;
+                break;
+
+            case Ring.RING3:
+                ringList = ring3;
+                break;
         }
+        OrbitalShift(ringChosen, UnityEngine.Random.Range(0, ringList.Count));
     }
 }
