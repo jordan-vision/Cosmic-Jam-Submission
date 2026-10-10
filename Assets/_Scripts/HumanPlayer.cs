@@ -1,4 +1,4 @@
-using System.Net.NetworkInformation;
+using System.Linq;
 using UnityEngine;
 
 public class HumanPlayer : DecisionMaker
@@ -52,6 +52,7 @@ public class HumanPlayer : DecisionMaker
                     Debug.Log($"moving to {newTileCoordinates}");
                     currentStep = ActionStep.SELECTACTION;
                     ActionsLeft--;
+                    GameManager.Instance.UI.ShowActions();
                 }
                 else
                 {
@@ -77,7 +78,20 @@ public class HumanPlayer : DecisionMaker
                     return;
                 }
                 currentStep = ActionStep.CHOOSEORBITALSHIFTOFFSET;
-                GameManager.Instance.ConfirmOrbitalButton.SetActive(true);
+                GameManager.Instance.UI.ActivateConfirmOrbitalButton();
+            }
+            else if (currentStep == ActionStep.SELECTBATTLELOCATION)
+            {
+                if (GameManager.Instance.Map.IsThereOtherPlayerAt(playerInfo, tileClicked))
+                {
+                    GameManager.Instance.Map.StartBattle(playerInfo, tileClicked);
+                    GameManager.Instance.UI.ShowActions();
+                    ActionsLeft--;
+                }
+                else
+                {
+                    return;
+                }
             }
         }
 
@@ -102,6 +116,7 @@ public class HumanPlayer : DecisionMaker
         }
 
         currentStep = ActionStep.SELECTMOVESTART;
+        GameManager.Instance.UI.HideActions();
     }
 
     public void StartOrbitalShift()
@@ -111,11 +126,54 @@ public class HumanPlayer : DecisionMaker
             return;
         }
         currentStep = ActionStep.SELECTORBITALSHIFTRING;
+        GameManager.Instance.UI.HideActions();
     }
 
     public void ConfirmOrbitalShift()
     {
         currentStep = ActionStep.SELECTACTION;
         ActionsLeft--;
+        GameManager.Instance.UI.ShowActions();
+    }
+
+    protected override void ScoreObjectives()
+    {
+        GameManager.Instance.UI.HideActions();
+        var scorable = GameManager.Instance.ObjectiveDeck.Where(o => o.Condition(playerInfo)).ToList();
+
+        if (scorable.Count() == 0)
+        {
+            GameManager.Instance.NextTurn();
+            return;
+        }
+
+        GameManager.Instance.UI.HighlightObjectives(scorable);
+    }
+
+    public void ScoreObjective(int publicId)
+    {
+        score++;
+        GameManager.Instance.UI.RemoveObjective(publicId);
+        GameManager.Instance.UI.HideAllScoreButtons();
+        GameManager.Instance.NextTurn();
+    }
+
+    public override void BuildShip()
+    {
+        base.BuildShip();
+        GameManager.Instance.UI.ShowActions();
+        ActionsLeft--;
+    }
+
+    public override void StartTurn()
+    {
+        base.StartTurn();
+        GameManager.Instance.UI.ShowActions();
+    }
+
+    public void StartBattle()
+    {
+        GameManager.Instance.UI.HideActions();
+        currentStep = ActionStep.SELECTBATTLELOCATION;
     }
 }

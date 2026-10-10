@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Tilemaps;
-using static Map;
 
 public class Map : MonoBehaviour
 {
@@ -20,8 +19,8 @@ public class Map : MonoBehaviour
     List<Vector3Int> ring2 = new() { new(0, 2), new(1, 2), new(1, 1), new(2, 0), new(1, -1), new(1, -2), new(0, -2), new(-1, -2), new(-2, -1), new(-2, 0), new(-2, 1), new(-1, 2) };
     List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3) };
     Array rings = Enum.GetValues(typeof(Ring));
-    PlayerInfo humanPlayerInfo = new(Color.red);
-    PlayerInfo cpuPlayerInfo = new(Color.green);
+    PlayerInfo humanPlayerInfo = new(new(-2, -3), Color.red);
+    PlayerInfo cpuPlayerInfo = new(new(1, 3), Color.green);
 
     [SerializeField] GameObject shipPrefab;
     [SerializeField] Tilemap tilemap;
@@ -38,20 +37,13 @@ public class Map : MonoBehaviour
         allMapPositions.Add(new(0, 0));
         grid = GetComponent<Grid>();
 
-        AddShip(humanPlayerInfo, -2, -3);
-        AddShip(humanPlayerInfo, -2, -3);
-        AddShip(humanPlayerInfo, -1, -3);
-        AddShip(humanPlayerInfo, -2, -2);
-
-        AddShip(cpuPlayerInfo, 1, 3);
-        AddShip(cpuPlayerInfo, 1, 3);
-        AddShip(cpuPlayerInfo, 0, 3);
-        AddShip(cpuPlayerInfo, 2, 2);
+        AddShip(humanPlayerInfo);
+        AddShip(cpuPlayerInfo);
 
         GameManager.Instance.HumanPlayer.StartTurn();
     }
 
-    void AddShip(PlayerInfo player, int x, int y)
+    public void AddShip(PlayerInfo player, int x, int y)
     {
         if (!player.Ships.TryGetValue((x, y), out var numberOfShipsHere) || numberOfShipsHere == 0)
         {
@@ -62,10 +54,22 @@ public class Map : MonoBehaviour
         }
         player.Ships[(x, y)]++;
         player.ShipCounters[(x, y)].GetComponent<ShipCounter>().SetCounter(player.Ships[(x, y)]);
+
+        AssessCoexistence((x, y));
+    }
+
+    public void AddShip(PlayerInfo player)
+    {
+        AddShip(player, player.HomeTile.x, player.HomeTile.y);
     }
 
     void RemoveShip(PlayerInfo player, int x, int y)
     {
+        if (player.Ships[(x, y)] == 0)
+        {
+            return;
+        }
+
         player.Ships[(x, y)]--;
         if (player.Ships[(x, y)] == 0)
         {
@@ -76,6 +80,8 @@ public class Map : MonoBehaviour
         {
             player.ShipCounters[(x, y)].GetComponent<ShipCounter>().SetCounter(player.Ships[(x, y)]);
         }
+
+        AssessCoexistence((x, y));
     }
 
     public void MoveShip(PlayerInfo player, Vector3Int from, Vector3Int to)
@@ -228,5 +234,65 @@ public class Map : MonoBehaviour
                 break;
         }
         OrbitalShift(ringChosen, UnityEngine.Random.Range(0, ringList.Count));
+    }
+
+    void AssessCoexistence((int, int) position)
+    {
+        var tileCenter = grid.GetCellCenterWorld(new(position.Item1, position.Item2));
+
+        humanPlayerInfo.Ships.TryGetValue(position, out var humanShips);
+        cpuPlayerInfo.Ships.TryGetValue(position, out var cpuShips);
+
+        if (humanShips == 0 && cpuShips == 0)
+        {
+            return;
+        }
+        else if (humanShips > 0 && cpuShips > 0)
+        {
+            humanPlayerInfo.ShipCounters[position].transform.position = tileCenter - new Vector3(.1f, 0);
+            humanPlayerInfo.ShipCounters[position].transform.localScale = new(.75f, .75f);
+            cpuPlayerInfo.ShipCounters[position].transform.position = tileCenter + new Vector3(.1f, 0);
+            cpuPlayerInfo.ShipCounters[position].transform.localScale = new(.75f, .75f);
+        }
+        else
+        {
+            if (humanShips > 0)
+            {
+                humanPlayerInfo.ShipCounters[position].transform.position = tileCenter;
+                humanPlayerInfo.ShipCounters[position].transform.localScale = new(1, 1);
+            }
+            if (cpuShips > 0)
+            {
+                CPUPlayerInfo.ShipCounters[position].transform.position = tileCenter;
+                CPUPlayerInfo.ShipCounters[position].transform.localScale = new(1, 1);
+            }
+        }
+    }
+
+    public bool IsThereOtherPlayerAt(PlayerInfo playerInfo, Vector3Int position)
+    {
+        var toCompare = playerInfo == humanPlayerInfo ? cpuPlayerInfo : humanPlayerInfo;
+        return toCompare.ShipCounters.TryGetValue((position.x, position.y), out var _);
+    }
+
+    public void StartBattle(PlayerInfo attacker, Vector3Int position)
+    {
+        var defender = attacker == humanPlayerInfo ? cpuPlayerInfo : humanPlayerInfo;
+
+        for (int i = 0; i < attacker.Ships[(position.x, position.y)]; i++)
+        {
+            if (UnityEngine.Random.value >= .5f)
+            {
+                RemoveShip(defender, position.x, position.y);
+            }
+        }
+
+        for (int i = 0; i < defender.Ships[(position.x, position.y)]; i++)
+        {
+            if (UnityEngine.Random.value >= .5f)
+            {
+                RemoveShip(attacker, position.x, position.y);
+            }
+        }
     }
 }

@@ -2,6 +2,13 @@ using System;
 
 public class CPU : DecisionMaker
 {
+    enum AvailableActions
+    {
+        MOVE,
+        BUILD,
+        ORBITALSHIFT,
+    }
+
     Array actions = Enum.GetValues(typeof(AvailableActions));
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -24,6 +31,10 @@ public class CPU : DecisionMaker
                     GameManager.Instance.Map.RandomMove(playerInfo);
                     break;
 
+                case AvailableActions.BUILD:
+                    GameManager.Instance.Map.AddShip(playerInfo);
+                    break;
+
                 case AvailableActions.ORBITALSHIFT:
                     GameManager.Instance.Map.RandomOrbitalShift();
                     break;
@@ -36,9 +47,8 @@ public class CPU : DecisionMaker
         }
     }
 
-    enum AvailableActions
+    protected override void ScoreObjectives()
     {
-        MOVE,
-        ORBITALSHIFT,
+        GameManager.Instance.NextTurn();
     }
 }
