@@ -20,7 +20,7 @@ public class PlayerInfo
     public int BattlesThisTurn { get { return battlesThisTurn; } set { battlesThisTurn = value; } }
     public bool ControllingSun { get { return controllingSun; } set { controllingSun = value; } }
     public bool ControllingPlanetX { get { return controllingPlanetX; } set { controllingPlanetX = value; } }
-    public int Gold { get { return gold; } set { gold = value; } }
+    public int Gold { get { return gold; } set { gold = value; GameManager.Instance.UI.UpdateInfoText(); } }
     public Vector2Int HomeTile { get { return homeTile; } set { homeTile = value; } }
     public string Name { get { return name; } set { name = value; } }
     public Dictionary<(int, int), int> Ships => ships;
