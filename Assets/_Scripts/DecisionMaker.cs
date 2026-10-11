@@ -25,7 +25,17 @@ public class DecisionMaker : MonoBehaviour
             GameManager.Instance.UI.UpdateTurnCounter(value);
             if (actionsLeft == 0)
             {
-                ScoreObjectives();
+                EndOfTurnShenanigans();
+            }
+            else
+            {
+                GameManager.Instance.UI.ReassessPossibleActions
+                (
+                    playerInfo.TotalShips() > 0,
+                    playerInfo.Gold >= 1,
+                    GameManager.Instance.Map.AreBothPlayersInSameTile(),
+                    playerInfo.Gold >= 2
+                );
             }
         }
     }
@@ -43,7 +53,7 @@ public class DecisionMaker : MonoBehaviour
         ActionsLeft = 3;
     }
 
-    protected virtual void ScoreObjectives()
+    protected virtual void EndOfTurnShenanigans()
     {
 
     }

@@ -189,12 +189,9 @@ public class HumanPlayer : DecisionMaker
                 {
                     selectedShipCoordinates = tileClicked;
                     CurrentStep = ActionStep.SELECTMOVEDESTINATION;
-
-                    Debug.Log($"selected ship {ship}");
                 }
                 else
                 {
-                    Debug.Log($"there are no ships here");
                 }
             }
             else if (CurrentStep == ActionStep.SELECTMOVEDESTINATION)
@@ -203,13 +200,11 @@ public class HumanPlayer : DecisionMaker
                 if (GameManager.Instance.Map.AreTilesAdjacent(selectedShipCoordinates, newTileCoordinates))
                 {
                     GameManager.Instance.Map.MoveShip(playerInfo, selectedShipCoordinates, newTileCoordinates);
-                    Debug.Log($"moving to {newTileCoordinates}");
                     CurrentStep = ActionStep.SELECTACTION;
                     ActionsLeft--;
                 }
                 else
                 {
-                    Debug.Log($"did not pick an adjacent tile");
                 }
             }
             else if (CurrentStep == ActionStep.SELECTORBITALSHIFTRING)
@@ -239,6 +234,7 @@ public class HumanPlayer : DecisionMaker
                 {
                     GameManager.Instance.Map.StartBattle(playerInfo, tileClicked);
                     CurrentStep = ActionStep.SELECTACTION;
+                    playerInfo.BattlesThisTurn++;
                     ActionsLeft--;
                 }
                 else
@@ -283,13 +279,19 @@ public class HumanPlayer : DecisionMaker
     public void ConfirmOrbitalShift()
     {
         CurrentStep = ActionStep.SELECTACTION;
+        playerInfo.Gold -= 2;
         ActionsLeft--;
     }
 
-    protected override void ScoreObjectives()
+    protected override void EndOfTurnShenanigans()
     {
         GameManager.Instance.UI.HideActions();
-        var scorable = GameManager.Instance.ObjectiveDeck.Where(o => !o.Scored && o.Condition(playerInfo)).ToList();
+
+        // Check for control
+        GameManager.Instance.Map.SetPlanetsControlledBy(playerInfo);
+
+        // Score objectives
+        var scorable = GameManager.Instance.ObjectiveDeck.Take(3).Where(o => o.Condition(playerInfo)).ToList();
 
         if (scorable.Count() == 0)
         {
@@ -302,29 +304,55 @@ public class HumanPlayer : DecisionMaker
         }
 
         GameManager.Instance.UI.ShowPass();
+        GameManager.Instance.UI.UpdateInfoText();
     }
 
     public void ScoreObjective(int publicId)
     {
         Score++;
         GameManager.Instance.UI.RemoveObjective(publicId, out var privateId);
-        GameManager.Instance.ScoreObjective(privateId);
+        GameManager.Instance.ScoreObjective(privateId, out var objective);
+        if (objective.WhenScored != null)
+        {
+            objective.WhenScored(playerInfo);
+        }
         GameManager.Instance.UI.HideAllScoreButtons();
-        GameManager.Instance.NextTurn();
+
+        if (Score >= GameManager.Instance.PointGoal)
+        {
+            GameManager.Instance.EndGame(playerInfo);
+        }
+        else
+        {
+            GameManager.Instance.NextTurn();
+        }
     }
 
     public override void BuildShip()
     {
         CurrentStep = ActionStep.SELECTACTION;
         base.BuildShip();
+        playerInfo.Gold -= 1;
         ActionsLeft--;
     }
 
     public override void StartTurn()
-    {
-        base.StartTurn();
+    { 
         GameManager.Instance.UI.NewTurn(playerInfo);
         CurrentStep = ActionStep.SELECTACTION;
+        playerInfo.BattlesThisTurn = 0;
+        playerInfo.Gold += playerInfo.GetProductionValue();
+
+        GameManager.Instance.UI.UpdateInfoText();
+        GameManager.Instance.UI.UpdatePointsAndGoldText(this);
+
+        if (playerInfo.ControllingSun && playerInfo.Ships[(0, 0)] >= 3)
+        {
+            Score++;
+            GameManager.Instance.UI.SunPoint(playerInfo);
+        }
+
+        base.StartTurn();
     }
 
     public void StartBattle()

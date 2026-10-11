@@ -19,10 +19,13 @@ public class Map : MonoBehaviour
     List<Vector3Int> ring2 = new() { new(0, 2), new(1, 2), new(1, 1), new(2, 0), new(1, -1), new(1, -2), new(0, -2), new(-1, -2), new(-2, -1), new(-2, 0), new(-2, 1), new(-1, 2) };
     List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3), new(-1, 3) };
     Array rings = Enum.GetValues(typeof(Ring));
+    bool planetXDiscovered = false;
+    Vector3Int planetXLocation;
     PlayerInfo player1Info;
     PlayerInfo player2Info;
 
-    [SerializeField] TileBase emptyTileBase;
+    [SerializeField] TileBase emptyTileBase, homeTileBase, sunTileBase, planetXTileBase;
+    [SerializeField] TileBase[] planetTiles;
     [SerializeField] GameObject shipPrefab;
     [SerializeField] Tilemap tilemap;
 
@@ -52,8 +55,27 @@ public class Map : MonoBehaviour
         player1Info.InitializeDictionaries();
         player2Info.InitializeDictionaries();
 
+        Vector3Int player1Home = new(player1Info.HomeTile.x, player1Info.HomeTile.y);
+        Vector3Int player2Home = new(player2Info.HomeTile.x, player2Info.HomeTile.y);
+
+        // Home tile color
+        tilemap.SetTileFlags(player1Home, TileFlags.None);
+        tilemap.SetTileFlags(player2Home, TileFlags.None);
+
+        Color.RGBToHSV(player1Info.PlayerColor, out var h1, out var s1, out var v1);
+        Color.RGBToHSV(player2Info.PlayerColor, out var h2, out var s2, out var v2);
+        var tile1Color = Color.HSVToRGB(h1, s1 / 2, v1 / 2);
+        var tile2Color = Color.HSVToRGB(h2, s2 / 2, v2 / 2);
+
+        tilemap.SetColor(player1Home, tile1Color);
+        tilemap.SetColor(player2Home, tile2Color);
+
         AddShip(Player1Info);
         AddShip(Player2Info);
+
+        // Place PlanetX
+        var emptyTiles = allMapPositions.Where(pos => tilemap.GetTile(pos) == emptyTileBase).ToList();
+        planetXLocation = emptyTiles[UnityEngine.Random.Range(0, emptyTiles.Count())];
     }
 
     public void AddShip(PlayerInfo player, int x, int y)
@@ -182,6 +204,12 @@ public class Map : MonoBehaviour
 
         List<TileBase> tileBases = Enumerable.Repeat<TileBase>(null, numberOfTiles).ToList();
 
+        // Get pre shift coordinates for planet X and homes
+        var planetXIndex = ringList.IndexOf(planetXLocation);
+        var home1Index = ringList.IndexOf(new(player1Info.HomeTile.x, player1Info.HomeTile.y));
+        var home2Index = ringList.IndexOf(new(player2Info.HomeTile.x, player2Info.HomeTile.y));
+        
+
         // Removing tiles
         for (var i = 0; i < numberOfTiles; i++)
         {
@@ -193,6 +221,36 @@ public class Map : MonoBehaviour
         for (var i = 0; i < numberOfTiles; i++)
         {
             tilemap.SetTile(ringList[i], tileBases[i]);
+        }
+
+        if (planetXIndex != -1)
+        {
+            planetXLocation = ringList[Util.Mod(planetXIndex + offset, numberOfTiles)];
+        }
+
+        if (home1Index != -1)
+        {
+            var pos = ringList[Util.Mod(home1Index + offset, numberOfTiles)];
+            player1Info.HomeTile = new(pos.x, pos.y);
+
+            // Home tile color
+            tilemap.SetTileFlags(pos, TileFlags.None);
+            Color.RGBToHSV(player1Info.PlayerColor, out var h, out var s, out var v);
+            var tileColor = Color.HSVToRGB(h, s / 2, v / 2);
+            tilemap.SetColor(pos, tileColor);
+        }
+
+        // Shift planet X and home
+        if (home2Index != -1)
+        {
+            var pos = ringList[Util.Mod(home2Index + offset, numberOfTiles)];
+            player2Info.HomeTile = new(pos.x, pos.y);
+
+            // Home tile color
+            tilemap.SetTileFlags(pos, TileFlags.None);
+            Color.RGBToHSV(player2Info.PlayerColor, out var h, out var s, out var v);
+            var tileColor = Color.HSVToRGB(h, s / 2, v / 2);
+            tilemap.SetColor(pos, tileColor);
         }
     }
 
@@ -340,11 +398,111 @@ public class Map : MonoBehaviour
 
         if (tileBase == emptyTileBase)
         {
-            return "<b>Empty tile</b>";
+            var text = "<b>Empty tile</b>";
+
+            if (!planetXDiscovered)
+            {
+                text += "\n\n May contain Planet X";
+            }
+
+            return text;
+        }
+        else if (tileBase == homeTileBase)
+        {
+            return "<b>Home tile</b>\n\nShips you build appear in your home tile";
+        }
+        else if (tileBase == sunTileBase)
+        {
+            return "<b>The Sun</b>\n\nAt the start of your turn, if you control the Sun and have 3 or more ships on it, you score 1 point.";
+        }
+        else if (tileBase == planetXTileBase)
+        {
+            return "<b>Planet X</b>\n\nThis planets generates 3 Gold per turn instead of 1.";
+        }
+        else if (planetTiles.Contains(tileBase))
+        {
+            return "<b>Planet tile</b>\n\nAt the end of your turn, if you have more ships here than your opponent, you control the planet. At the start of your turn, you get Gold depending on how many planets you control.";
         }
         else
         {
             return "";
         }
+    }
+
+    public void SetPlanetsControlledBy(PlayerInfo player)
+    {
+        var otherPlayer = player == player1Info ? player2Info : player1Info;
+        var potentialPlanets = allMapPositions.Where(v => planetTiles.Contains(tilemap.GetTile(new(v.x, v.y))));
+
+        foreach (var planet in potentialPlanets)
+        {
+            // If no ships there, lose control
+            if (!player.Ships.TryGetValue((planet.x, planet.y), out var shipCount) || shipCount <= 0)
+            {
+                player.RemovePlanet(planet);
+                continue;
+            }
+
+            // If other player has more or same number of ships, status quo
+            if (otherPlayer.Ships.TryGetValue((planet.x, planet.y), out var otherPlayerShipCount) && otherPlayerShipCount >= shipCount)
+            {
+                continue;
+            }
+
+            player.AddPlanet(planet);
+            otherPlayer.RemovePlanet(planet);
+        }
+        
+        // Do the same with the sun
+        if (!player.Ships.TryGetValue((0, 0), out var shipCountSun) || shipCountSun <= 0)
+        {
+            player.ControllingSun = false;
+            CheckPlanetX(player, otherPlayer);
+            return;
+        }
+
+        if (otherPlayer.Ships.TryGetValue((0, 0), out var otherPlayerShipCountSun) && otherPlayerShipCountSun >= shipCountSun)
+        {
+            CheckPlanetX(player, otherPlayer);
+            return;
+        }
+
+        player.ControllingSun = true;
+        otherPlayer.ControllingSun = false;
+        CheckPlanetX(player, otherPlayer);
+    }
+
+    private void CheckPlanetX(PlayerInfo player, PlayerInfo otherPlayer)
+    {
+        // Same thing with planet X
+        if (!player.Ships.TryGetValue((planetXLocation.x, planetXLocation.y), out var shipCountSun) || shipCountSun <= 0)
+        {
+            player.ControllingPlanetX = false;
+            player.RemovePlanet(planetXLocation);
+            return;
+        }
+
+        if (otherPlayer.Ships.TryGetValue((planetXLocation.x, planetXLocation.y), out var otherPlayerShipCountSun) && otherPlayerShipCountSun >= shipCountSun)
+        {
+            return;
+        }
+
+        player.ControllingPlanetX = true;
+        player.AddPlanet(planetXLocation);
+        otherPlayer.ControllingPlanetX = false;
+        otherPlayer.RemovePlanet(planetXLocation);
+
+        if (!planetXDiscovered)
+        {
+            tilemap.SetTile(planetXLocation, planetXTileBase);
+            planetXDiscovered = true;
+            GameManager.Instance.UI.PlanetXDiscovered(player);
+        }
+    }
+
+    public bool AreBothPlayersInSameTile()
+    {
+        var players = GameManager.Instance.TurnOrder.ToList();
+        return allMapPositions.Any(position => players.All(player => player.Info.Ships.TryGetValue((position.x, position.y), out var count) && count >= 1));
     }
 }

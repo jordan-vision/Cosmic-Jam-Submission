@@ -6,6 +6,10 @@ using UnityEngine;
 [Serializable]
 public class PlayerInfo
 {
+    int battlesThisTurn;
+    bool controllingSun, controllingPlanetX;
+    int gold;
+    List<Vector3Int> planetsControlled;
     Dictionary<(int, int), int> ships;
     Dictionary<(int, int), GameObject> shipCounters;
 
@@ -13,7 +17,11 @@ public class PlayerInfo
     [SerializeField] string name;
     [SerializeField] Color playerColor;
 
-    public Vector2Int HomeTile => homeTile;
+    public int BattlesThisTurn { get { return battlesThisTurn; } set { battlesThisTurn = value; } }
+    public bool ControllingSun { get { return controllingSun; } set { controllingSun = value; } }
+    public bool ControllingPlanetX { get { return controllingPlanetX; } set { controllingPlanetX = value; } }
+    public int Gold { get { return gold; } set { gold = value; } }
+    public Vector2Int HomeTile { get { return homeTile; } set { homeTile = value; } }
     public string Name => name;
     public Dictionary<(int, int), int> Ships => ships;
     public Dictionary<(int, int), GameObject> ShipCounters => shipCounters;
@@ -35,5 +43,32 @@ public class PlayerInfo
     {
         ships = new();
         shipCounters = new();
+        planetsControlled = new();
     }
+
+    public void AddPlanet(Vector3Int planet)
+    {
+        if (planetsControlled.Contains(planet))
+        {
+            return;
+        }
+
+        planetsControlled.Add(planet);
+    }
+
+    public void RemovePlanet(Vector3Int planet)
+    {
+        if (!planetsControlled.Contains(planet))
+        {
+            return;
+        }
+
+        planetsControlled.Remove(planet);
+    }
+
+    public int GetPlanetCount() => planetsControlled.Count;
+
+    public int TotalShips() => ships.Sum(s => s.Value);
+
+    public int GetProductionValue() => 1 + planetsControlled.Count + (controllingPlanetX ? 2 : 0);
 }

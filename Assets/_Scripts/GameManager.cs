@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.SearchService;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -13,6 +13,7 @@ public class GameManager : MonoBehaviour
     public CPU CPUPlayer;
     public Map Map;
     public List<Objective> ObjectiveDeck;
+    public int PointGoal;
     public GameObject TileHoverPrefab;
     public HumanPlayer[] TurnOrder;
     public UserInterface UI;
@@ -33,11 +34,16 @@ public class GameManager : MonoBehaviour
     {
         ObjectiveDeck = new()
         {
-            new("Have 4 or more ships in the same tile.", p => p.Ships.Values.Any(v => v >= 4), 0),
-            new("Have 1 or more ship in each of 4 or different tiles.", p => p.Ships.Values.Where(v => v >= 1).Count() >= 4, 1),
-            new("Be the only player with ships on the Sun", p => p.Ships.TryGetValue((0, 0), out var value) && value >= 1 && TurnOrder.Where(dm => dm.HasShipInSun()).Count() == 1 , 2),
+            new("Have 3+ ships in a non-home tile", p => p.Ships.Where(kv => kv.Key != (p.HomeTile.x, p.HomeTile.y)).Select(kv => kv.Value).Any(v => v >= 3), 0),
+            new("Have 1+ ship in each of 3+ different non-home tiles", p => p.Ships.Where(kv => kv.Key != (p.HomeTile.x, p.HomeTile.y)).Select(kv => kv.Value).Where(v => v >= 1).Count() >= 3, 1),
+            new("Control 2+ planets", p => p.GetPlanetCount() >= 2, 2),
+            new("Initiate 2+ battles in the same turn", p => p.BattlesThisTurn >= 2, 3),
+            new("Have 2+ ships on the Sun while your opponent has 0", p => p.Ships.TryGetValue((0, 0), out var value) && value >= 2 && TurnOrder.Where(dm => dm.HasShipInSun()).Count() == 1 , 4),
+            new("have 6+ ships total", p => p.TotalShips() >= 6, 5),
+            new("Spend 4 Gold", p => p.Gold >= 4, 6, p => p.Gold -= 4)
         };
 
+        ObjectiveDeck = ObjectiveDeck.OrderBy(_ => Random.value).ToList();
         UI.SetupObjectives();
     }
 
@@ -58,9 +64,16 @@ public class GameManager : MonoBehaviour
         TurnOrder[currentTurnIndex].StartTurn();
     }
 
-    public void ScoreObjective(int id)
+    public void ScoreObjective(int id, out Objective objective)
     {
-        ObjectiveDeck.Find(o => o.Id == id).Scored = true;
+        objective = ObjectiveDeck.Find(o => o.Id == id);
+        // Bottom of deck
+        ObjectiveDeck.Remove(objective);
+        ObjectiveDeck.Add(objective);
+
+        // Rewrite objectives
+        UI.SetupObjectives();
+        UI.ObjectiveScored(objective.Description, ObjectiveDeck[2].Description);
     }
 
     public PlayerInfo ActivePlayer()
@@ -70,6 +83,11 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
+        if (Input.GetKey(KeyCode.Escape))
+        {
+            Application.Quit();
+            Debug.Log("Quitting game");
+        }
         // frame 1 things
         if (!ready)
         {
@@ -114,8 +132,19 @@ public class GameManager : MonoBehaviour
         TurnOrder[currentTurnIndex].ConfirmOrbitalShift();
     }
 
-    public void Score(int publicId)
+    public void PlayerScore(int publicId)
     {
         TurnOrder[currentTurnIndex].ScoreObjective(publicId);
+    }
+
+    public void EndGame(PlayerInfo winner)
+    {
+        UI.GameEndSummary(winner);
+    }
+
+    public void Restart()
+    {
+        // Return to main menu? Or reload
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

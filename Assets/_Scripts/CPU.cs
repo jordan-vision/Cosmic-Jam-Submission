@@ -46,9 +46,4 @@ public class CPU : DecisionMaker
             ActionsLeft--;
         }
     }
-
-    protected override void ScoreObjectives()
-    {
-        GameManager.Instance.NextTurn();
-    }
 }
