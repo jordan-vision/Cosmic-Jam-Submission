@@ -15,6 +15,7 @@ public class UserInterface : MonoBehaviour
     [SerializeField] ObjectiveTab[] objectiveTabs;
     [SerializeField] TextMeshProUGUI turnCounter, infoText, instructionsText, ruleBookTitle, ruleBookContents, helpSection, whoseTurn, pointCount, goldCount;
     [SerializeField] Button moveButton, buildButton, battleButton, shiftButton;
+    [SerializeField] GameObject actionPanel, objectivePanel, sidePanel, titlePanel;
 
     private void Start()
     {
@@ -248,5 +249,15 @@ public class UserInterface : MonoBehaviour
     {
         pointCount.text = $"SCORE: {player.Score} / {GameManager.Instance.PointGoal}";
         goldCount.text = $"GOLD: {player.Info.Gold} ({player.Info.GetProductionValue()}/turn)";
+    }
+
+    public void StartGame()
+    {
+        actionPanel.SetActive(true);
+        objectivePanel.SetActive(true);
+        sidePanel.SetActive(true);
+        titlePanel.SetActive(false);
+
+        NewTurn(GameManager.Instance.TurnOrder[0].Info);
     }
 }

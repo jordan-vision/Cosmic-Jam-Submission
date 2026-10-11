@@ -22,7 +22,7 @@ public class PlayerInfo
     public bool ControllingPlanetX { get { return controllingPlanetX; } set { controllingPlanetX = value; } }
     public int Gold { get { return gold; } set { gold = value; } }
     public Vector2Int HomeTile { get { return homeTile; } set { homeTile = value; } }
-    public string Name => name;
+    public string Name { get { return name; } set { name = value; } }
     public Dictionary<(int, int), int> Ships => ships;
     public Dictionary<(int, int), GameObject> ShipCounters => shipCounters;
     public Color PlayerColor => playerColor;

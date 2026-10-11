@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -146,5 +147,15 @@ public class GameManager : MonoBehaviour
     {
         // Return to main menu? Or reload
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void ChangePlayer1Name(TMP_InputField name)
+    {
+        TurnOrder[0].Info.Name = name.text;
+    }
+
+    public void ChangePlayer2Name(TMP_InputField name)
+    {
+        TurnOrder[1].Info.Name = name.text;
     }
 }
