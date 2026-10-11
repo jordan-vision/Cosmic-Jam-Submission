@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -9,9 +10,9 @@ public class UserInterface : MonoBehaviour
     bool pleaseUpdate = true;
     Dictionary<string, string> ruleBookPages;
 
-    [SerializeField] GameObject actions, confirmOrbitalButton, ruleBook, nextButton, previousButton;
+    [SerializeField] GameObject actions, confirmOrbitalButton, ruleBook, nextButton, previousButton, passButton;
     [SerializeField] ObjectiveTab[] objectiveTabs;
-    [SerializeField] TextMeshProUGUI turnCounter, infoText, instructionsText, ruleBookTitle, ruleBookContents, helpSection;
+    [SerializeField] TextMeshProUGUI turnCounter, infoText, instructionsText, ruleBookTitle, ruleBookContents, helpSection, whoseTurn;
 
     private void Start()
     {
@@ -60,9 +61,10 @@ public class UserInterface : MonoBehaviour
         }
     }
 
-    public void RemoveObjective(int publicId)
+    public void RemoveObjective(int publicId, out int privateId)
     {
         objectiveTabs[publicId].gameObject.SetActive(false);
+        privateId = objectiveTabs[publicId].ObjectiveId;
     }
 
     public void HideAllScoreButtons()
@@ -104,9 +106,14 @@ public class UserInterface : MonoBehaviour
         {
             var color = player.Info.PlayerColor;
             var hexCode = ColorUtility.ToHtmlStringRGB(color);
-            finalText += $"<color=#{hexCode}>Player 1</color>\n";
+            finalText += $"<color=#{hexCode}>{player.Info.Name}</color>\n";
             finalText += $"\t{player.Score} Points\n\n";
         }
+        var activePlayer = GameManager.Instance.ActivePlayer();
+        var activePlayerColor = activePlayer.PlayerColor;
+        var activePlayerHex = ColorUtility.ToHtmlStringRGB(activePlayerColor);
+
+        finalText += $"<color=#{activePlayerHex}>{activePlayer.Name}</color>'s turn.";
 
         infoText.text = finalText;
 
@@ -164,5 +171,16 @@ public class UserInterface : MonoBehaviour
         }
 
         UpdateInfoText();
+    }
+
+    public void NewTurn(PlayerInfo playerInfo)
+    {
+        UpdateInfoText();
+        whoseTurn.text = $"<color=#{ColorUtility.ToHtmlStringRGB(playerInfo.PlayerColor)}>{playerInfo.Name}'s turn</color>";
+    }
+
+    public void ShowPass()
+    {
+        passButton.SetActive(true);
     }
 }

@@ -8,12 +8,13 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance;
 
     int currentTurnIndex = 0;
+    bool ready = false;
 
     public CPU CPUPlayer;
     public Map Map;
     public List<Objective> ObjectiveDeck;
-    public HumanPlayer HumanPlayer;
-    public DecisionMaker[] TurnOrder;
+    public GameObject TileHoverPrefab;
+    public HumanPlayer[] TurnOrder;
     public UserInterface UI;
     
     void Awake()
@@ -40,7 +41,12 @@ public class GameManager : MonoBehaviour
         UI.SetupObjectives();
     }
 
-    public bool IsItMyTurn(DecisionMaker decisionMaker)
+    public void GameReady()
+    {
+        ready = true;
+    }
+
+    public bool IsItMyTurn(HumanPlayer decisionMaker)
     {
         return TurnOrder[currentTurnIndex] == decisionMaker;
     }
@@ -50,5 +56,66 @@ public class GameManager : MonoBehaviour
         Debug.Log("next turn");
         currentTurnIndex = (currentTurnIndex + 1) % TurnOrder.Length;
         TurnOrder[currentTurnIndex].StartTurn();
+    }
+
+    public void ScoreObjective(int id)
+    {
+        ObjectiveDeck.Find(o => o.Id == id).Scored = true;
+    }
+
+    public PlayerInfo ActivePlayer()
+    {
+        return TurnOrder[currentTurnIndex].Info;
+    }
+
+    private void Update()
+    {
+        // frame 1 things
+        if (!ready)
+        {
+            return;
+        }
+        else
+        {
+            ready = false;
+
+            foreach (var human in TurnOrder)
+            {
+                human.GetRingHover();
+            }
+
+            Map.SetupBoard();
+            TurnOrder[currentTurnIndex].StartTurn();
+        }
+    }
+
+    public void StartMove()
+    {
+        TurnOrder[currentTurnIndex].StartMove();
+    }
+
+    public void Build()
+    {
+        TurnOrder[currentTurnIndex].BuildShip();
+    }
+
+    public void Battle()
+    {
+        TurnOrder[currentTurnIndex].StartBattle();
+    }
+
+    public void Orbital()
+    {
+        TurnOrder[currentTurnIndex].StartOrbitalShift();
+    }
+
+    public void ConfirmOrbital()
+    {
+        TurnOrder[currentTurnIndex].ConfirmOrbitalShift();
+    }
+
+    public void Score(int publicId)
+    {
+        TurnOrder[currentTurnIndex].ScoreObjective(publicId);
     }
 }

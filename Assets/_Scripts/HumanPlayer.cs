@@ -10,13 +10,11 @@ public class HumanPlayer : DecisionMaker
     Predicate<Vector3Int> mainTileHoverEligibility;
     GameObject auxTileHover;
     Predicate<Vector3Int> auxTileHoverEligibility;
+    Map.Ring selectedRing;
+    Vector3Int selectedShipCoordinates;
     List<GameObject> ring1Hover = new();
     List<GameObject> ring2Hover = new();
     List<GameObject> ring3Hover = new();
-    Map.Ring selectedRing;
-    Vector3Int selectedShipCoordinates;
-
-    [SerializeField] GameObject tileHoverPrefab;
 
     public ActionStep CurrentStep { get { return currentStep; } set 
         { 
@@ -60,7 +58,7 @@ public class HumanPlayer : DecisionMaker
             switch(value)
             {
                 case ActionStep.SELECTMOVESTART:
-                    GameManager.Instance.UI.WriteInstrictions("Choose a tile to start moving from.");
+                    GameManager.Instance.UI.WriteInstrictions("Choose a tile to move from.");
                     break;
 
                 case ActionStep.SELECTMOVEDESTINATION:
@@ -72,7 +70,7 @@ public class HumanPlayer : DecisionMaker
                     break;
 
                 case ActionStep.CHOOSEORBITALSHIFTOFFSET:
-                    GameManager.Instance.UI.WriteInstrictions("Use scrollwheel to shift. Click Confirm when done.");
+                    GameManager.Instance.UI.WriteInstrictions("Use scrollwheel to shift.\nClick NEXT when done.");
                     break;
 
                 case ActionStep.SELECTBATTLELOCATION:
@@ -85,23 +83,25 @@ public class HumanPlayer : DecisionMaker
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private void Start()
     {
-        mainTileHover = Instantiate(tileHoverPrefab);
-        auxTileHover = Instantiate(tileHoverPrefab);
+        mainTileHover = Instantiate(GameManager.Instance.TileHoverPrefab);
+        auxTileHover = Instantiate(GameManager.Instance.TileHoverPrefab);
         var auxColor = auxTileHover.GetComponent<SpriteRenderer>().color;
         auxTileHover.GetComponent<SpriteRenderer>().color = new(auxColor.r, auxColor.g, auxColor.b, 0.25f);
-        playerInfo = GameManager.Instance.Map.HumanPlayerInfo;
+    }
 
+    public void GetRingHover()
+    {
         foreach (var position in GameManager.Instance.Map.Ring1)
         {
-            ring1Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+            ring1Hover.Add(Instantiate(GameManager.Instance.TileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
         }
         foreach (var position in GameManager.Instance.Map.Ring2)
         {
-            ring2Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+            ring2Hover.Add(Instantiate(GameManager.Instance.TileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
         }
         foreach (var position in GameManager.Instance.Map.Ring3)
         {
-            ring3Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+            ring3Hover.Add(Instantiate(GameManager.Instance.TileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
         }
     }
 
@@ -289,22 +289,26 @@ public class HumanPlayer : DecisionMaker
     protected override void ScoreObjectives()
     {
         GameManager.Instance.UI.HideActions();
-        var scorable = GameManager.Instance.ObjectiveDeck.Where(o => o.Condition(playerInfo)).ToList();
+        var scorable = GameManager.Instance.ObjectiveDeck.Where(o => !o.Scored && o.Condition(playerInfo)).ToList();
 
         if (scorable.Count() == 0)
         {
-            GameManager.Instance.NextTurn();
-            return;
+            GameManager.Instance.UI.WriteInstrictions("You have no actions left.\nPass your turn.");
+        }
+        else
+        {
+            GameManager.Instance.UI.WriteInstrictions("You may score an objective.\nChoose which to score or pass.");
+            GameManager.Instance.UI.HighlightObjectives(scorable);
         }
 
-        GameManager.Instance.UI.WriteInstrictions("You may score an objective. Choose which to score or pass");
-        GameManager.Instance.UI.HighlightObjectives(scorable);
+        GameManager.Instance.UI.ShowPass();
     }
 
     public void ScoreObjective(int publicId)
     {
         Score++;
-        GameManager.Instance.UI.RemoveObjective(publicId);
+        GameManager.Instance.UI.RemoveObjective(publicId, out var privateId);
+        GameManager.Instance.ScoreObjective(privateId);
         GameManager.Instance.UI.HideAllScoreButtons();
         GameManager.Instance.NextTurn();
     }
@@ -319,6 +323,7 @@ public class HumanPlayer : DecisionMaker
     public override void StartTurn()
     {
         base.StartTurn();
+        GameManager.Instance.UI.NewTurn(playerInfo);
         CurrentStep = ActionStep.SELECTACTION;
     }
 

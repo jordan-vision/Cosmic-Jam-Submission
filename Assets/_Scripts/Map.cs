@@ -19,8 +19,8 @@ public class Map : MonoBehaviour
     List<Vector3Int> ring2 = new() { new(0, 2), new(1, 2), new(1, 1), new(2, 0), new(1, -1), new(1, -2), new(0, -2), new(-1, -2), new(-2, -1), new(-2, 0), new(-2, 1), new(-1, 2) };
     List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3), new(-1, 3) };
     Array rings = Enum.GetValues(typeof(Ring));
-    PlayerInfo humanPlayerInfo = new(new(-2, -3), Color.red);
-    PlayerInfo cpuPlayerInfo = new(new(1, 3), Color.green);
+    PlayerInfo player1Info;
+    PlayerInfo player2Info;
 
     [SerializeField] TileBase emptyTileBase;
     [SerializeField] GameObject shipPrefab;
@@ -29,8 +29,8 @@ public class Map : MonoBehaviour
     public List<Vector3Int> Ring1 => ring1;
     public List<Vector3Int> Ring2 => ring2;
     public List<Vector3Int> Ring3 => ring3;
-    public PlayerInfo CPUPlayerInfo => cpuPlayerInfo;
-    public PlayerInfo HumanPlayerInfo => humanPlayerInfo;
+    public PlayerInfo Player1Info => player1Info;
+    public PlayerInfo Player2Info => player2Info;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -41,10 +41,19 @@ public class Map : MonoBehaviour
         allMapPositions.Add(new(0, 0));
         grid = GetComponent<Grid>();
 
-        AddShip(humanPlayerInfo);
-        AddShip(cpuPlayerInfo);
+        GameManager.Instance.GameReady();
+    }
 
-        GameManager.Instance.HumanPlayer.StartTurn();
+    public void SetupBoard()
+    {
+        player1Info = GameManager.Instance.TurnOrder[0].Info;
+        player2Info = GameManager.Instance.TurnOrder[1].Info;
+
+        player1Info.InitializeDictionaries();
+        player2Info.InitializeDictionaries();
+
+        AddShip(Player1Info);
+        AddShip(Player2Info);
     }
 
     public void AddShip(PlayerInfo player, int x, int y)
@@ -249,44 +258,44 @@ public class Map : MonoBehaviour
     {
         var tileCenter = grid.GetCellCenterWorld(new(position.Item1, position.Item2));
 
-        humanPlayerInfo.Ships.TryGetValue(position, out var humanShips);
-        cpuPlayerInfo.Ships.TryGetValue(position, out var cpuShips);
+        Player1Info.Ships.TryGetValue(position, out var player1Ships);
+        Player2Info.Ships.TryGetValue(position, out var player2Ships);
 
-        if (humanShips == 0 && cpuShips == 0)
+        if (player1Ships == 0 && player2Ships == 0)
         {
             return;
         }
-        else if (humanShips > 0 && cpuShips > 0)
+        else if (player1Ships > 0 && player2Ships > 0)
         {
-            humanPlayerInfo.ShipCounters[position].transform.position = tileCenter - new Vector3(.1f, 0);
-            humanPlayerInfo.ShipCounters[position].transform.localScale = new(.75f, .75f);
-            cpuPlayerInfo.ShipCounters[position].transform.position = tileCenter + new Vector3(.1f, 0);
-            cpuPlayerInfo.ShipCounters[position].transform.localScale = new(.75f, .75f);
+            Player1Info.ShipCounters[position].transform.position = tileCenter - new Vector3(.1f, 0);
+            Player1Info.ShipCounters[position].transform.localScale = new(.75f, .75f);
+            Player2Info.ShipCounters[position].transform.position = tileCenter + new Vector3(.1f, 0);
+            Player2Info.ShipCounters[position].transform.localScale = new(.75f, .75f);
         }
         else
         {
-            if (humanShips > 0)
+            if (player1Ships > 0)
             {
-                humanPlayerInfo.ShipCounters[position].transform.position = tileCenter;
-                humanPlayerInfo.ShipCounters[position].transform.localScale = new(1, 1);
+                Player1Info.ShipCounters[position].transform.position = tileCenter;
+                Player1Info.ShipCounters[position].transform.localScale = new(1, 1);
             }
-            if (cpuShips > 0)
+            if (player2Ships > 0)
             {
-                CPUPlayerInfo.ShipCounters[position].transform.position = tileCenter;
-                CPUPlayerInfo.ShipCounters[position].transform.localScale = new(1, 1);
+                Player2Info.ShipCounters[position].transform.position = tileCenter;
+                Player2Info.ShipCounters[position].transform.localScale = new(1, 1);
             }
         }
     }
 
     public bool IsThereOtherPlayerAt(PlayerInfo playerInfo, Vector3Int position)
     {
-        var toCompare = playerInfo == humanPlayerInfo ? cpuPlayerInfo : humanPlayerInfo;
+        var toCompare = playerInfo == player1Info ? player2Info : player1Info;
         return toCompare.ShipCounters.TryGetValue((position.x, position.y), out var _);
     }
 
     public void StartBattle(PlayerInfo attacker, Vector3Int position)
     {
-        var defender = attacker == humanPlayerInfo ? cpuPlayerInfo : humanPlayerInfo;
+        var defender = attacker == player1Info ? player2Info : player1Info;
 
         List<bool> attackerFlips = new();
         List<bool> defenderFlips = new();

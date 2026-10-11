@@ -14,8 +14,9 @@ public class DecisionMaker : MonoBehaviour
 
     protected int actionsLeft;
     protected ActionStep currentStep = ActionStep.SELECTACTION;
-    protected PlayerInfo playerInfo;
     protected int score;
+
+    [SerializeField] protected PlayerInfo playerInfo;
 
     public int ActionsLeft { get { return actionsLeft; } set
         {

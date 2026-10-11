@@ -14,7 +14,7 @@ public class CPU : DecisionMaker
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private void Start()
     {
-        playerInfo = GameManager.Instance.Map.CPUPlayerInfo;
+        //playerInfo = GameManager.Instance.Map.CPUPlayerInfo;
     }
 
     public override void StartTurn()
