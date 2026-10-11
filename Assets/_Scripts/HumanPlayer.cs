@@ -1,40 +1,194 @@
+
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public class HumanPlayer : DecisionMaker
 {
+    GameObject mainTileHover;
+    Predicate<Vector3Int> mainTileHoverEligibility;
+    GameObject auxTileHover;
+    Predicate<Vector3Int> auxTileHoverEligibility;
+    List<GameObject> ring1Hover = new();
+    List<GameObject> ring2Hover = new();
+    List<GameObject> ring3Hover = new();
     Map.Ring selectedRing;
     Vector3Int selectedShipCoordinates;
 
+    [SerializeField] GameObject tileHoverPrefab;
+
+    public ActionStep CurrentStep { get { return currentStep; } set 
+        { 
+            currentStep = value;
+
+            if (value == ActionStep.SELECTACTION)
+            {
+                GameManager.Instance.UI.ShowActions();
+                mainTileHover.SetActive(false);
+                auxTileHover.SetActive(false);
+                ring1Hover.ForEach(h => h.SetActive(false));
+                ring2Hover.ForEach(h => h.SetActive(false));
+                ring3Hover.ForEach(h => h.SetActive(false));
+            }
+
+            if (value == ActionStep.SELECTMOVESTART || value == ActionStep.SELECTORBITALSHIFTRING || value == ActionStep.SELECTBATTLELOCATION)
+            {
+                GameManager.Instance.UI.HideActions();
+            }
+
+            if (value == ActionStep.SELECTMOVESTART || value == ActionStep.SELECTBATTLELOCATION)
+            {
+                mainTileHover.SetActive(true);
+
+                if (value == ActionStep.SELECTMOVESTART)
+                {
+                    mainTileHoverEligibility = t => GameManager.Instance.Map.IsShipInTile(playerInfo, t, out var _);
+                }
+                if (value == ActionStep.SELECTBATTLELOCATION)
+                {
+                    mainTileHoverEligibility = t => GameManager.Instance.Map.IsShipInTile(playerInfo, t, out var _) && GameManager.Instance.Map.IsThereOtherPlayerAt(playerInfo, t);
+                }
+            }
+
+            if (value == ActionStep.SELECTMOVEDESTINATION)
+            {
+                auxTileHover.SetActive(true);
+                auxTileHoverEligibility = t => GameManager.Instance.Map.AreTilesAdjacent(t, selectedShipCoordinates);
+            }
+
+            switch(value)
+            {
+                case ActionStep.SELECTMOVESTART:
+                    GameManager.Instance.UI.WriteInstrictions("Choose a tile to start moving from.");
+                    break;
+
+                case ActionStep.SELECTMOVEDESTINATION:
+                    GameManager.Instance.UI.WriteInstrictions("Choose a tile to move into.");
+                    break;
+
+                case ActionStep.SELECTORBITALSHIFTRING:
+                    GameManager.Instance.UI.WriteInstrictions("Choose a ring to shift.");
+                    break;
+
+                case ActionStep.CHOOSEORBITALSHIFTOFFSET:
+                    GameManager.Instance.UI.WriteInstrictions("Use scrollwheel to shift. Click Confirm when done.");
+                    break;
+
+                case ActionStep.SELECTBATTLELOCATION:
+                    GameManager.Instance.UI.WriteInstrictions("Choose a tile to battle in.");
+                    break;
+            }
+        }
+    }
+    
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private void Start()
     {
+        mainTileHover = Instantiate(tileHoverPrefab);
+        auxTileHover = Instantiate(tileHoverPrefab);
+        var auxColor = auxTileHover.GetComponent<SpriteRenderer>().color;
+        auxTileHover.GetComponent<SpriteRenderer>().color = new(auxColor.r, auxColor.g, auxColor.b, 0.25f);
         playerInfo = GameManager.Instance.Map.HumanPlayerInfo;
+
+        foreach (var position in GameManager.Instance.Map.Ring1)
+        {
+            ring1Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+        }
+        foreach (var position in GameManager.Instance.Map.Ring2)
+        {
+            ring2Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+        }
+        foreach (var position in GameManager.Instance.Map.Ring3)
+        {
+            ring3Hover.Add(Instantiate(tileHoverPrefab, GameManager.Instance.Map.GetTileCenter(position), Quaternion.identity));
+        }
     }
 
     // Update is called once per frame
     private void Update()
     {
-        if (currentStep == ActionStep.SELECTACTION || !GameManager.Instance.IsItMyTurn(this))
+        if (CurrentStep == ActionStep.SELECTACTION || !GameManager.Instance.IsItMyTurn(this))
         {
             return;
         }
 
         var mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+
+        if (mainTileHover.activeSelf && (currentStep == ActionStep.SELECTMOVESTART || currentStep == ActionStep.SELECTBATTLELOCATION))
+        {
+            var tile = GameManager.Instance.Map.GetTileAtMouse(mousePosition);
+            if (mainTileHoverEligibility(tile))
+            {
+                var tileCenter = GameManager.Instance.Map.GetTileCenter(tile);
+                mainTileHover.transform.position = new(tileCenter.x, tileCenter.y);
+                mainTileHover.GetComponent<SpriteRenderer>().enabled = true;
+            }
+            else
+            {
+                mainTileHover.GetComponent<SpriteRenderer>().enabled = false;
+            }
+        }
+
+        if (auxTileHover.activeSelf)
+        {
+            var tile = GameManager.Instance.Map.GetTileAtMouse(mousePosition);
+            if (auxTileHoverEligibility(tile))
+            {
+                var tileCenter = GameManager.Instance.Map.GetTileCenter(tile);
+                auxTileHover.transform.position = new(tileCenter.x, tileCenter.y);
+                auxTileHover.GetComponent<SpriteRenderer>().enabled = true;
+            }
+            else
+            {
+                auxTileHover.GetComponent<SpriteRenderer>().enabled = false;
+            }
+        }
+
+        if (currentStep == ActionStep.SELECTORBITALSHIFTRING)
+        {
+            var tile = GameManager.Instance.Map.GetTileAtMouse(mousePosition);
+
+            if (GameManager.Instance.Map.IsTileInRing(tile, Map.Ring.RING1))
+            {
+                ring1Hover.ForEach(h => h.SetActive(true));
+            }
+            else
+            {
+                ring1Hover.ForEach(h => h.SetActive(false));
+            }
+            if (GameManager.Instance.Map.IsTileInRing(tile, Map.Ring.RING2))
+            {
+                ring2Hover.ForEach(h => h.SetActive(true));
+            }
+            else
+            {
+                ring2Hover.ForEach(h => h.SetActive(false));
+            }
+            if (GameManager.Instance.Map.IsTileInRing(tile, Map.Ring.RING3))
+            {
+                ring3Hover.ForEach(h => h.SetActive(true));
+            }
+            else
+            {
+                ring3Hover.ForEach(h => h.SetActive(false));
+            }
+        }
+
         if (Input.GetMouseButtonDown(0))
         {
-            var tileClicked = GameManager.Instance.Map.GetTileClicked(mousePosition);
+            var tileClicked = GameManager.Instance.Map.GetTileAtMouse(mousePosition);
             if (!GameManager.Instance.Map.IsTileInMap(tileClicked))
             {
                 return;
             }
 
-            if (currentStep == ActionStep.SELECTMOVESTART)
+            if (CurrentStep == ActionStep.SELECTMOVESTART)
             {
                 if (GameManager.Instance.Map.IsShipInTile(playerInfo, tileClicked, out var ship))
                 {
                     selectedShipCoordinates = tileClicked;
-                    currentStep = ActionStep.SELECTMOVEDESTINATION;
+                    CurrentStep = ActionStep.SELECTMOVEDESTINATION;
 
                     Debug.Log($"selected ship {ship}");
                 }
@@ -43,23 +197,22 @@ public class HumanPlayer : DecisionMaker
                     Debug.Log($"there are no ships here");
                 }
             }
-            else if (currentStep == ActionStep.SELECTMOVEDESTINATION)
+            else if (CurrentStep == ActionStep.SELECTMOVEDESTINATION)
             {
                 var newTileCoordinates = tileClicked;
                 if (GameManager.Instance.Map.AreTilesAdjacent(selectedShipCoordinates, newTileCoordinates))
                 {
                     GameManager.Instance.Map.MoveShip(playerInfo, selectedShipCoordinates, newTileCoordinates);
                     Debug.Log($"moving to {newTileCoordinates}");
-                    currentStep = ActionStep.SELECTACTION;
+                    CurrentStep = ActionStep.SELECTACTION;
                     ActionsLeft--;
-                    GameManager.Instance.UI.ShowActions();
                 }
                 else
                 {
                     Debug.Log($"did not pick an adjacent tile");
                 }
             }
-            else if (currentStep == ActionStep.SELECTORBITALSHIFTRING)
+            else if (CurrentStep == ActionStep.SELECTORBITALSHIFTRING)
             {
                 if (GameManager.Instance.Map.IsTileInRing(tileClicked, Map.Ring.RING1))
                 {
@@ -77,15 +230,15 @@ public class HumanPlayer : DecisionMaker
                 {
                     return;
                 }
-                currentStep = ActionStep.CHOOSEORBITALSHIFTOFFSET;
+                CurrentStep = ActionStep.CHOOSEORBITALSHIFTOFFSET;
                 GameManager.Instance.UI.ActivateConfirmOrbitalButton();
             }
-            else if (currentStep == ActionStep.SELECTBATTLELOCATION)
+            else if (CurrentStep == ActionStep.SELECTBATTLELOCATION)
             {
                 if (GameManager.Instance.Map.IsThereOtherPlayerAt(playerInfo, tileClicked))
                 {
                     GameManager.Instance.Map.StartBattle(playerInfo, tileClicked);
-                    GameManager.Instance.UI.ShowActions();
+                    CurrentStep = ActionStep.SELECTACTION;
                     ActionsLeft--;
                 }
                 else
@@ -95,7 +248,7 @@ public class HumanPlayer : DecisionMaker
             }
         }
 
-        if (currentStep == ActionStep.CHOOSEORBITALSHIFTOFFSET)
+        if (CurrentStep == ActionStep.CHOOSEORBITALSHIFTOFFSET)
         {
             if (Input.GetAxis("Mouse ScrollWheel") > 0f)
             {
@@ -115,8 +268,7 @@ public class HumanPlayer : DecisionMaker
             return;
         }
 
-        currentStep = ActionStep.SELECTMOVESTART;
-        GameManager.Instance.UI.HideActions();
+        CurrentStep = ActionStep.SELECTMOVESTART;
     }
 
     public void StartOrbitalShift()
@@ -125,15 +277,13 @@ public class HumanPlayer : DecisionMaker
         {
             return;
         }
-        currentStep = ActionStep.SELECTORBITALSHIFTRING;
-        GameManager.Instance.UI.HideActions();
+        CurrentStep = ActionStep.SELECTORBITALSHIFTRING;
     }
 
     public void ConfirmOrbitalShift()
     {
-        currentStep = ActionStep.SELECTACTION;
+        CurrentStep = ActionStep.SELECTACTION;
         ActionsLeft--;
-        GameManager.Instance.UI.ShowActions();
     }
 
     protected override void ScoreObjectives()
@@ -147,12 +297,13 @@ public class HumanPlayer : DecisionMaker
             return;
         }
 
+        GameManager.Instance.UI.WriteInstrictions("You may score an objective. Choose which to score or pass");
         GameManager.Instance.UI.HighlightObjectives(scorable);
     }
 
     public void ScoreObjective(int publicId)
     {
-        score++;
+        Score++;
         GameManager.Instance.UI.RemoveObjective(publicId);
         GameManager.Instance.UI.HideAllScoreButtons();
         GameManager.Instance.NextTurn();
@@ -160,20 +311,19 @@ public class HumanPlayer : DecisionMaker
 
     public override void BuildShip()
     {
+        CurrentStep = ActionStep.SELECTACTION;
         base.BuildShip();
-        GameManager.Instance.UI.ShowActions();
         ActionsLeft--;
     }
 
     public override void StartTurn()
     {
         base.StartTurn();
-        GameManager.Instance.UI.ShowActions();
+        CurrentStep = ActionStep.SELECTACTION;
     }
 
     public void StartBattle()
     {
-        GameManager.Instance.UI.HideActions();
-        currentStep = ActionStep.SELECTBATTLELOCATION;
+        CurrentStep = ActionStep.SELECTBATTLELOCATION;
     }
 }

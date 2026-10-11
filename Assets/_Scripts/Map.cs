@@ -17,14 +17,18 @@ public class Map : MonoBehaviour
     Grid grid;
     List<Vector3Int> ring1 = new() { new(-1, 1), new(0, 1), new(1, 0), new(0, -1), new(-1, -1), new(-1, 0) };
     List<Vector3Int> ring2 = new() { new(0, 2), new(1, 2), new(1, 1), new(2, 0), new(1, -1), new(1, -2), new(0, -2), new(-1, -2), new(-2, -1), new(-2, 0), new(-2, 1), new(-1, 2) };
-    List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3) };
+    List<Vector3Int> ring3 = new() { new(0, 3), new(1, 3), new(2, 2), new(2, 1), new(3, 0), new(2, -1), new(2, -2), new(1, -3), new(0, -3), new(-1, -3), new(-2, -3), new(-2, -2), new(-3, -1), new(-3, 0), new(-3, 1), new(-2, 2), new(-2, 3), new(-1, 3) };
     Array rings = Enum.GetValues(typeof(Ring));
     PlayerInfo humanPlayerInfo = new(new(-2, -3), Color.red);
     PlayerInfo cpuPlayerInfo = new(new(1, 3), Color.green);
 
+    [SerializeField] TileBase emptyTileBase;
     [SerializeField] GameObject shipPrefab;
     [SerializeField] Tilemap tilemap;
 
+    public List<Vector3Int> Ring1 => ring1;
+    public List<Vector3Int> Ring2 => ring2;
+    public List<Vector3Int> Ring3 => ring3;
     public PlayerInfo CPUPlayerInfo => cpuPlayerInfo;
     public PlayerInfo HumanPlayerInfo => humanPlayerInfo;
 
@@ -92,6 +96,11 @@ public class Map : MonoBehaviour
 
     public bool AreTilesAdjacent(Vector3Int tile1, Vector3Int tile2)
     {
+        if (!IsTileInMap(new(tile1.x, tile1.y)) || !IsTileInMap(new(tile2.x, tile2.y)))
+        {
+            return false;
+        }
+
         if (tile1.x == tile2.x && tile1.y == tile2.y)
         {
             return false;
@@ -178,7 +187,7 @@ public class Map : MonoBehaviour
         }
     }
 
-    public Vector3Int GetTileClicked(Vector3 mousePosition)
+    public Vector3Int GetTileAtMouse(Vector3 mousePosition)
     {
         return grid.WorldToCell(mousePosition);
     }
@@ -279,11 +288,19 @@ public class Map : MonoBehaviour
     {
         var defender = attacker == humanPlayerInfo ? cpuPlayerInfo : humanPlayerInfo;
 
+        List<bool> attackerFlips = new();
+        List<bool> defenderFlips = new();
+
         for (int i = 0; i < attacker.Ships[(position.x, position.y)]; i++)
         {
             if (UnityEngine.Random.value >= .5f)
             {
                 RemoveShip(defender, position.x, position.y);
+                attackerFlips.Add(true);
+            }
+            else
+            {
+                attackerFlips.Add(false);
             }
         }
 
@@ -292,7 +309,33 @@ public class Map : MonoBehaviour
             if (UnityEngine.Random.value >= .5f)
             {
                 RemoveShip(attacker, position.x, position.y);
+                defenderFlips.Add(true);
             }
+            else
+            {
+                defenderFlips.Add(false);
+            }
+        }
+
+        GameManager.Instance.UI.BattleSummary((attacker, defender), (attackerFlips, defenderFlips));
+    }
+
+    public Vector3 GetTileCenter(Vector3Int tile)
+    {
+        return grid.GetCellCenterWorld(tile);
+    }
+
+    public string GetExplanation(Vector3Int position)
+    {
+        var tileBase = tilemap.GetTile(new(position.x, position.y));
+
+        if (tileBase == emptyTileBase)
+        {
+            return "<b>Empty tile</b>";
+        }
+        else
+        {
+            return "";
         }
     }
 }

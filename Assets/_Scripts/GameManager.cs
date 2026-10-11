@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.SearchService;
 using UnityEngine;
 
 public class GameManager : MonoBehaviour
@@ -32,7 +33,7 @@ public class GameManager : MonoBehaviour
         ObjectiveDeck = new()
         {
             new("Have 4 or more ships in the same tile.", p => p.Ships.Values.Any(v => v >= 4), 0),
-            new("Have 4 ships in 4 or more different tiles.", p => p.Ships.Values.Where(v => v >= 1).Count() >= 4, 1),
+            new("Have 1 or more ship in each of 4 or different tiles.", p => p.Ships.Values.Where(v => v >= 1).Count() >= 4, 1),
             new("Be the only player with ships on the Sun", p => p.Ships.TryGetValue((0, 0), out var value) && value >= 1 && TurnOrder.Where(dm => dm.HasShipInSun()).Count() == 1 , 2),
         };
 

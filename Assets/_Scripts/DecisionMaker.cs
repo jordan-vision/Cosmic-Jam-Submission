@@ -17,19 +17,28 @@ public class DecisionMaker : MonoBehaviour
     protected PlayerInfo playerInfo;
     protected int score;
 
-    public int ActionsLeft { get { return actionsLeft; } set 
-        { 
+    public int ActionsLeft { get { return actionsLeft; } set
+        {
             actionsLeft = value;
+
+            GameManager.Instance.UI.UpdateTurnCounter(value);
             if (actionsLeft == 0)
             {
                 ScoreObjectives();
             }
+        }
+    }
+
+    public PlayerInfo Info => playerInfo;
+    public int Score { get { return score; } set 
+        {
+            score = value;
+            GameManager.Instance.UI.UpdateInfoText();
         } 
     }
 
     public virtual void StartTurn()
     {
-        currentStep = ActionStep.SELECTACTION;
         ActionsLeft = 3;
     }
 
